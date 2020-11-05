@@ -6,7 +6,7 @@
         class="new-todo"
         placeholder="What needs to be done?"
         autofocus
-        v-model="inputValue"
+        v-model="input"
         @keyup.enter="addTodo"
       />
     </header>
@@ -15,27 +15,26 @@
       <label for="toggle-all">Mark all as complete</label>
       <ul class="todo-list">
         <li
-          v-for="todo in filteredTodos"
-          :key="todo.id + '-' + todo.title"
-          class="todo"
-          :class="{ completed: todo.completed }"
+          v-for="todo in todos"
+          :key="todo"
+          :class="{ editing: todo === editingTodo }"
         >
           <div class="view">
             <input class="toggle" type="checkbox" v-model="todo.completed" />
-            <label>{{ todo.title }}</label>
-            <button class="destroy" @click="removeTodo(todo)"></button>
+            <label @dblclick="editTodo(todo)">{{ todo.text }}</label>
+            <button class="destroy" @click="remove(todo)"></button>
           </div>
-          <input class="edit" :value="todo.title" />
+          <input class="edit" v-model="todo.text" />
         </li>
       </ul>
     </section>
-    <footer class="footer" v-show="todos.length !== 0">
-      <span class="todo-count">
+    <footer class="footer" v-if="false">
+      <!-- <span class="todo-count">
         <strong>{{ todos.length }}</strong>
         {{ todos.length > 1 ? "items" : "item" }}
         left
-      </span>
-      <ul class="filters">
+      </span> -->
+      <ul class="filters" v-if="false">
         <li>
           <a :class="{ selected: type === 'all' }" href="#/all">All</a>
         </li>
@@ -43,9 +42,9 @@
           <a :class="{ selected: type === 'active' }" href="#/active">Active</a>
         </li>
         <li>
-          <a :class="{ selected: type === 'completed' }" href="#/completed"
-            >Completed</a
-          >
+          <a :class="{ selected: type === 'completed' }" href="#/completed">
+            Completed
+          </a>
         </li>
       </ul>
       <button
@@ -59,116 +58,75 @@
   </section>
   <footer class="info">
     <p>Double-click to edit a todo</p>
-    <p>Created by <a href="http://sindresorhus.com">Aisen60</a></p>
+    <p>
+      Created by
+      <a href="https://github.com/Aisen60/vue-composition-api-todolist">
+        Aisen60</a
+      >
+    </p>
     <p>Part of <a href="http://todomvc.com">TodoMVC</a></p>
   </footer>
 </template>
 
 <script>
-import {
-  ref,
-  reactive,
-  computed,
-  watchEffect,
-  onMounted,
-  onUnmounted,
-} from "vue";
+import { ref, reactive, watch, computed } from "vue";
 import { getStorage, setStorage } from "../utils/";
-const useAdd = (todos) => {
-  const inputValue = ref("");
+
+const useAddTodo = (todos) => {
+  const input = ref("");
   const addTodo = () => {
-    const title = inputValue.value && inputValue.value.trim();
-    if (title.length === 0) return;
+    const text = input.value && input.value.trim();
+    if (text.length === 0) return;
     todos.push({
-      id: Math.round(new Date()),
-      title,
+      text,
       completed: false,
     });
-    inputValue.value = "";
+    input.value = "";
   };
-  return {
-    inputValue,
-    addTodo,
-  };
+  return { input, addTodo };
 };
 
 const useRemove = (todos) => {
-  const removeTodo = (todo) => {
+  const remove = (todo) => {
     const index = todos.indexOf(todo);
     todos.splice(index, 1);
   };
+  return { remove };
+};
 
-  const removeCompleted = () => {
-    // console.log("原始todos对象：", todos);
-    // todos = reactive(todos.filter((todo) => !todo.completed));
-    // console.log("修改后的todos对象：", todos);
-    todos = todos.filter((todo) => !todo.completed);
+const useEdit = () => {
+  let beforeText = "";
+  let editingTodo = reactive({});
+  const editTodo = (todo) => {
+    beforeText = todo.text;
+    editingTodo = todo;
+    console.log(editingTodo, todo);
+    console.log(editingTodo === todo);
   };
+  const cancelEdit = (todo) => {
+    beforeText = "";
+    todo.text = editingTodo.text;
+  };
+
+  watch(editingTodo, (newVal, oldVal) => {
+  });
   return {
-    removeTodo,
-    removeCompleted,
+    editingTodo,
+    editTodo,
+    cancelEdit,
   };
-};
-
-const useFilter = (todos) => {
-  const type = ref("all");
-
-  const filter = {
-    all: (list) => list,
-    active: (list) => list.filter((todo) => !todo.completed),
-    completed: (list) => list.filter((todo) => todo.completed),
-  };
-
-  const handlerHashChange = () => {
-    const hash = window.location.hash.replace("#/", "");
-    if (filter[hash]) {
-      type.value = hash;
-      filter[hash](todos);
-    } else {
-      type.value = "all";
-      window.location.hash = "";
-    }
-  };
-
-  onMounted(() => {
-    window.addEventListener("hashchange", handlerHashChange);
-    handlerHashChange();
-  });
-
-  onUnmounted(() => {
-    window.removeEventListener("hashchange");
-  });
-
-  const filteredTodos = computed(() => filter[type.value](todos));
-
-  const completedCount = computed(() => filter.completed(todos));
-
-  return { type, filteredTodos, completedCount };
-};
-
-const useStorage = () => {
-  const storageKey = "TODOLIST",
-    storage = JSON.parse(getStorage(storageKey)) || [],
-    todos = reactive(storage);
-  watchEffect(() => {
-    setStorage(storageKey, JSON.stringify(todos));
-  });
-  return todos;
 };
 
 export default {
   name: "TodoList",
   setup() {
-    const todos = useStorage();
-    const { removeTodo, removeCompleted } = useRemove(todos);
-
+    const todos = reactive([]);
+    const { remove } = useRemove(todos);
     return {
       todos,
-      removeTodo,
-      removeCompleted,
-      ...useAdd(todos),
-      // ...useRemove(todos),
-      ...useFilter(todos),
+      remove,
+      ...useAddTodo(todos),
+      ...useEdit(),
     };
   },
 };
