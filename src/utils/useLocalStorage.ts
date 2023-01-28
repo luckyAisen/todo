@@ -29,7 +29,7 @@ export default function useLocalStorage<T>() {
     if (value) {
       value = parse(value);
     }
-    return value as T;
+    return value as unknown as T
   }
 
   return {
